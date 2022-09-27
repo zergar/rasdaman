@@ -28,16 +28,7 @@ RUN apt-get -y update --fix-missing && \
     apt-get -y install curl && \
     apt-get -y install screen && \
     apt-get -y install python3-gdal && \
-    apt-get -y install python3-pip && \
-    # pip3 install rasdapy3 && \
-    #wget -O - http://download.rasdaman.org/packages/rasdaman.gpg | apt-key add - && \
-    # echo "deb [arch=amd64] http://download.rasdaman.org/packages/deb jessie stable" | tee /etc/apt/sources.list.d/rasdaman.list && \
-    rm -rf /var/lib/apt/lists/* && \
-    mkdir /opt/rasdaman/log && \
-    /opt/rasdaman/bin/create_db.sh && \
-    /opt/rasdaman/bin/update_db.sh && \
-    # /opt/rasdaman/bin/rasdaman_insertdemo.sh && \
-    chmod 777 -R /opt/rasdaman/log
+    apt-get -y install python3-pip
 
 ENV RASMGR_PORT 7001
 ENV RASLOGIN rasadmin:d293a15562d3e70b6fdc5ee452eaed40
@@ -58,15 +49,18 @@ EXPOSE 7001-7010
 COPY entrypoint.sh /entrypoint.sh
 
 # import su Rasdaman
-COPY config_minio.txt ./
+#COPY config_minio.txt ./
 RUN mkdir import
 
-RUN pip install glob2 jsonschema
+RUN pip3 install glob2 jsonschema
 
-RUN pip3 install rasdapy3
+#RUN pip3 install rasdapy3
 
 # tomcat9 setup
 COPY server.xml /etc/tomcat9/server.xml
+COPY server.xml /var/lib/tomcat9/conf/server.xml
+
+COPY tomcat-users.xml /var/lib/tomcat9/conf/tomcat-users.xml
 
 #copy the startup sh script (starting from tomcat9) 
 COPY tomcat9 /etc/init.d/tomcat9
@@ -74,18 +68,35 @@ RUN chmod +x /etc/init.d/tomcat9
 #RUN chmod +x /etc/init.d/tomcat9 && \
 #    update-rc.d /etc/init.d/tomcat9 defaults
 
+RUN adduser --system --no-create-home --group tomcat
 
 RUN mkdir -p /var/lib/tomcat9/shared/classes && \
       mkdir -p /var/lib/tomcat9/common/classes && \
       mkdir -p /var/lib/tomcat9/server/classes && \
+      mkdir -p /var/lib/tomcat9/logs && \
+      mkdir -p /var/lib/tomcat9/webapps && \
+      mkdir -p /var/lib/tomcat9/conf/policy.d && \
       mkdir -p /usr/share/tomcat9/temp && \
       mkdir -p /usr/share/tomcat9/common && \
+      mkdir -p /usr/share/tomcat9/logs/ && \
+      mkdir -p /opt/rasdaman/scripts && \
       chown -R tomcat:tomcat /usr/share/tomcat9/ && \
       chown -R tomcat:tomcat /var/lib/tomcat9/ && \
       chown -R tomcat:tomcat /var/lib/tomcat9/webapps && \
-      chown -R tomcat:tomcat /var/lib/tomcat9/webapps/* && \
-      mkdir -p /opt/rasdaman/scripts
+      touch /opt/rasdaman/log/secore.log && \
+      touch /opt/rasdaman/log/petascope.log && \
+      chmod -R 777 /opt/rasdaman/log
+     # chown -R tomcat:tomcat /var/lib/tomcat9/webapps/* && \
 
+     
+COPY catalina.policy /var/lib/tomcat9/conf/policy.d/catalina.policy
+
+RUN cd /var/lib/tomcat9/webapps &&\
+    ln -s $RMANHOME/share/rasdaman/war/rasdaman.war rasdaman.war
+
+RUN sed -i '76 i host  all   all   0.0.0.0/0   trust' /etc/postgresql/10/main/pg_hba.conf
+#RUN sudo -u postgres createuser --no-password --createdb petauser 
+#RUN sudo -u postgres createdb --owner petauser petascopedb
 
 # Expose tomcat port
 EXPOSE 8080
